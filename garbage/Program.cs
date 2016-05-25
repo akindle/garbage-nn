@@ -18,6 +18,11 @@ namespace garbage
         {
             var x = new MnistDataLoader();
             var network = new Network(new List<int> { 784, 30, 10});
+            var r = new Random();
+            var data = Network.xrange(0, 100000).Select(a => CreateVector.Dense<double>(10, a % 7));
+            var labels = Network.xrange(0, 100000).Select(a => a % 7);
+            var train = data.Take(50000).Zip(labels.Take(50000), (vector, i) => new Network.DataSet(vector, i, 7)).ToList();
+            var test = data.Skip(50000).Zip(labels.Skip(50000), (vector, i) => new Network.DataSet(vector, i, 7)).ToList();
             network.StochasticGradientDescent(x.TrainingData, 30, 30, 3, x.TestingData);
         }
     }
@@ -86,7 +91,7 @@ namespace garbage
                 for(var j = 0; j < rows; j++)
                     for (var k = 0; k < columns; k++)
                         data[j * columns + k] = datastream.ReadByte();
-                results.Add(new Network.DataSet(data, label));
+                results.Add(new Network.DataSet(data, label, 10));
             }
             return results;
         }
@@ -122,12 +127,13 @@ namespace garbage
         public struct DataSet
         {
             public readonly Vector<double> Data;
-            public readonly int Label;
+            public readonly Vector<double> Label;
 
-            public DataSet(Vector<double> data, int label)
+            public DataSet(Vector<double> data, int label, int labelDimensionality)
             {
                 Data = data;
-                Label = label;
+                Label = CreateVector.Dense<double>(labelDimensionality);
+                this.Label[label] = 1;
             }
         }
 
@@ -156,7 +162,7 @@ namespace garbage
 
         private int evaluate(List<DataSet> testData)
         {
-            var x = testData.Select(a => new { res = Feedforward(a.Data).MaximumIndex(), label = a.Label });
+            var x = testData.Select(a => new { res = Feedforward(a.Data).MaximumIndex(), label = a.Label.MaximumIndex() });
             return x.Count(a => a.res == a.label);
         }
 
@@ -230,7 +236,7 @@ namespace garbage
             return Sigmoid(z).PointwiseMultiply(1 - Sigmoid(z));
         }
 
-        private Vector<double> CostDerivative(Vector<double> activations, int y)
+        private Vector<double> CostDerivative(Vector<double> activations, Vector<double> y)
         {
             return activations - y;
         }
