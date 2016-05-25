@@ -16,14 +16,17 @@ namespace garbage
     {
         static void Main(string[] args)
         {
+            if (Control.TryUseNative())
+            {
+                Console.WriteLine("Some native provider?!");
+            }
+            else
+            {
+                Console.WriteLine("No native provider :(");
+            }
             var x = new MnistDataLoader();
             var network = new Network(new List<int> { 784, 30, 10});
-            var r = new Random();
-            var data = Network.xrange(0, 100000).Select(a => CreateVector.Dense<double>(10, a % 7));
-            var labels = Network.xrange(0, 100000).Select(a => a % 7);
-            var train = data.Take(50000).Zip(labels.Take(50000), (vector, i) => new Network.DataSet(vector, i, 7)).ToList();
-            var test = data.Skip(50000).Zip(labels.Skip(50000), (vector, i) => new Network.DataSet(vector, i, 7)).ToList();
-            network.StochasticGradientDescent(x.TrainingData, 30, 30, 3, x.TestingData);
+            network.StochasticGradientDescent(x.TrainingData, 30, 10, 1, x.TestingData);
         }
     }
     public class BigEndianBinaryReader : BinaryReader
@@ -88,9 +91,10 @@ namespace garbage
             {
                 var label = labelstream.ReadByte();
                 var data = CreateVector.Dense<double>(rows * columns);
-                for(var j = 0; j < rows; j++)
-                    for (var k = 0; k < columns; k++)
-                        data[j * columns + k] = datastream.ReadByte();
+                for (var j = 0; j < (rows * columns); j++)
+                {
+                    data[j] = datastream.ReadByte();
+                }
                 results.Add(new Network.DataSet(data, label, 10));
             }
             return results;
@@ -114,6 +118,7 @@ namespace garbage
         public Vector<double> Sigmoid(Vector<double> z)
         {
             return CreateVector.Dense(z.Select(SpecialFunctions.Logistic).ToArray());
+
             //return 1.0 / (1.0 + z.Negate().PointwiseExp());
         }
 
