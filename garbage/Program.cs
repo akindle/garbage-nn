@@ -16,7 +16,19 @@ namespace garbage
     {
         static void Main(string[] args)
         {
-            if (Control.TryUseNative())
+            if (Control.TryUseNativeCUDA())
+            {
+                Console.WriteLine("CUDA!");
+            }
+            else if (Control.TryUseNativeMKL())
+            {
+                Console.WriteLine("MKL!");
+            }
+            else if (Control.TryUseNativeOpenBLAS())
+            {
+                Console.WriteLine("OpenBLAS!");
+            }
+            else if (Control.TryUseNative())
             {
                 Console.WriteLine("Some native provider?!");
             }
