@@ -125,8 +125,8 @@ namespace garbage
         {
             this.sizes = sizes;
             // randomly initialize biases and weights
-            biases = sizes.Skip(1).Select(y => CreateVector.Random<double>(y)).ToList();
-            weights = sizes.Take(sizes.Count - 1).Zip(sizes.Skip(1), (x, y) => CreateMatrix.Random<double>(y, x)).ToList();
+            biases = sizes.Skip(1).Select(y => CreateVector.Random<double>(y, 219)).ToList();
+            weights = sizes.Take(sizes.Count - 1).Zip(sizes.Skip(1), (x, y) => CreateMatrix.Random<double>(y, x, 219)).ToList();
             weightsT = weights.Select(a => a.Transpose()).ToList();
         }
 
@@ -154,14 +154,14 @@ namespace garbage
                 this.Label[label] = 1;
             }
         }
-
+        private readonly Random rand = new Random(0);
         public void StochasticGradientDescent(List<DataSet> trainingData, int epochs, int miniBatchSize, double eta, List<DataSet> testData = null)
         { 
             var nTest = testData?.Count ?? 0;
             var n = trainingData.Count;
             foreach (var x in xrange(0, epochs))
             {
-                var shuffled = trainingData.OrderBy(a => Guid.NewGuid());
+                var shuffled = trainingData.OrderBy(a => rand.Next());
                 var miniBatches = xrange(0, n, miniBatchSize).Select(k => shuffled.Skip(k).Take(miniBatchSize).ToList());
                 // updateMiniBatch(shuffled.Take(miniBatchSize), eta);
                 var stopwatch = Stopwatch.StartNew();
@@ -225,10 +225,7 @@ namespace garbage
             // backward pass
             var delta = CostDerivative(aStack.Pop(), dataSet.Label).PointwiseMultiply(spStack.Pop());
             del_b[del_b.Count - 1] = delta;
-
-            var deltaMatrix = CreateMatrix.Dense<double>(1, delta.Count);
-            deltaMatrix.SetRow(0, delta);
-            del_w[del_w.Count - 1] = deltaMatrix.Transpose() * aStack.Pop().ToRowMatrix();
+            del_w[del_w.Count - 1] = delta.ToColumnMatrix() * aStack.Pop().ToRowMatrix();
 
             // additional backward passes
             foreach (var L in xrange(2, sizes.Count))
@@ -236,10 +233,7 @@ namespace garbage
                 var sp = spStack.Pop();
                 delta = (weightsT[weights.Count - L + 1] * delta).PointwiseMultiply(sp);
                 del_b[del_b.Count - L] = delta;
-
-                deltaMatrix = CreateMatrix.Dense<double>(1, delta.Count);
-                deltaMatrix.SetRow(0, delta);
-                del_w[del_w.Count - L] = deltaMatrix.Transpose() * aStack.Pop().ToRowMatrix();
+                del_w[del_w.Count - L] = delta.ToColumnMatrix() * aStack.Pop().ToRowMatrix();
             }
 
             //return new Tuple<List<Vector<double>>, List<Matrix<double>>>(del_b, del_w);
