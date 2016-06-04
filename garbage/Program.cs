@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -37,8 +38,8 @@ namespace garbage
                 Console.WriteLine("No native provider :(");
             }
             var x = new MnistDataLoader();
-            var network = new Network(new List<int> { 784, 30, 10});
-            network.StochasticGradientDescent(x.TrainingData, 30, 10, 1, x.TestingData);
+            var network = new Network(new List<int> { 784, 100, 30, 10});
+            network.StochasticGradientDescent(x.TrainingData, 30000, 3000, 4, x.TestingData);
         }
     }
     public class BigEndianBinaryReader : BinaryReader
@@ -116,6 +117,7 @@ namespace garbage
     public class Network
     {
         private List<Matrix<double>> weights; // each layer of the network has a matrix of weights
+        private List<Matrix<double>> weightsT; // each layer of the network has a matrix of weights
         private List<Vector<double>> biases; // each layer of the network has a vector of biases
         private List<int> sizes; // each layer of the network has a size (number of nodes)
 
@@ -125,23 +127,22 @@ namespace garbage
             // randomly initialize biases and weights
             biases = sizes.Skip(1).Select(y => CreateVector.Random<double>(y)).ToList();
             weights = sizes.Take(sizes.Count - 1).Zip(sizes.Skip(1), (x, y) => CreateMatrix.Random<double>(y, x)).ToList();
+            weightsT = weights.Select(a => a.Transpose()).ToList();
         }
 
         public Vector<double> Sigmoid(Vector<double> z)
         {
             return CreateVector.Dense(z.Select(SpecialFunctions.Logistic).ToArray());
-
-            //return 1.0 / (1.0 + z.Negate().PointwiseExp());
         }
 
-        public Vector<double> Feedforward(Vector<double> a) // a is nx1 but not a vector for some reason
+        public Vector<double> Feedforward(Vector<double> a)
         {
             foreach (var x in biases.Zip(weights, (bias, weight) => new {b = bias, w = weight}))
                 a = Sigmoid(x.w * a + x.b);
             return a;
         }
 
-        public struct DataSet
+        public class DataSet
         {
             public readonly Vector<double> Data;
             public readonly Vector<double> Label;
@@ -155,17 +156,20 @@ namespace garbage
         }
 
         public void StochasticGradientDescent(List<DataSet> trainingData, int epochs, int miniBatchSize, double eta, List<DataSet> testData = null)
-        {
+        { 
             var nTest = testData?.Count ?? 0;
             var n = trainingData.Count;
             foreach (var x in xrange(0, epochs))
             {
-                var shuffled = trainingData.OrderBy(a => Guid.NewGuid()).ToList();
-                var miniBatches = xrange(0, n, miniBatchSize).Select(k => shuffled.Skip(k).Take(miniBatchSize).ToList()).ToList();
-                foreach (var b in miniBatches)
+                var shuffled = trainingData.OrderBy(a => Guid.NewGuid());
+                var miniBatches = xrange(0, n, miniBatchSize).Select(k => shuffled.Skip(k).Take(miniBatchSize).ToList());
+                // updateMiniBatch(shuffled.Take(miniBatchSize), eta);
+                var stopwatch = Stopwatch.StartNew();
+                foreach (var batch in miniBatches)
                 {
-                    updateMiniBatch(b, eta);
+                    updateMiniBatch(batch, eta);
                 }
+                Console.WriteLine($"Minibatch set done in {stopwatch.Elapsed}");
                 if (testData != null)
                 {
                     Console.WriteLine($"Epoch {x}: {evaluate(testData)} / {nTest}");
@@ -174,7 +178,7 @@ namespace garbage
                 {
                     Console.WriteLine($"Epoch {x} complete");
                 }
-            }
+            } 
         }
 
         private int evaluate(List<DataSet> testData)
@@ -183,69 +187,62 @@ namespace garbage
             return x.Count(a => a.res == a.label);
         }
 
-        private void updateMiniBatch(List<DataSet> batch, double eta)
+        private void updateMiniBatch(IEnumerable<DataSet> batch, double eta)
         {
-            var nabla_b = biases.Select(b => CreateVector.Dense<double>(b.Count)).ToList();
-            var nabla_w = weights.Select(w => CreateMatrix.Dense<double>(w.RowCount, w.ColumnCount)).ToList();
-            var bag = new ConcurrentBag<Tuple<List<Vector<double>>, List<Matrix<double>>>>();
-            Parallel.ForEach(batch, x => 
-            //foreach (var x in batch)
-            { 
-                bag.Add(backprop(x));
-            });
-            foreach (var delta_nabla in bag)
+            var del_b = biases.Select(b => CreateVector.Dense<double>(b.Count)).ToList();
+            var del_w = weights.Select(w => CreateMatrix.Dense<double>(w.RowCount, w.ColumnCount)).ToList();
+            var del_bp = biases.Select(b => CreateVector.Dense<double>(b.Count)).ToList();
+            var del_wp = weights.Select(w => CreateMatrix.Dense<double>(w.RowCount, w.ColumnCount)).ToList();
+            var batchSize = 0;
+            //Parallel.ForEach(batch, x => 
+            foreach (var x in batch)
             {
-                nabla_b = nabla_b.Zip(delta_nabla.Item1, (nb, dnb) => nb + dnb).ToList();
-                nabla_w = nabla_w.Zip(delta_nabla.Item2, (nw, dnw) => nw + dnw).ToList();
+                batchSize++;
+                backprop(x, ref del_bp, ref del_wp);
+                del_b = del_b.Zip(del_bp, (nb, dnb) => nb + dnb).ToList();
+                del_w = del_w.Zip(del_wp, (nw, dnw) => nw + dnw).ToList();
             }
-            weights = weights.Zip(nabla_w, (w, nw) => w - ((eta / batch.Count) * nw)).ToList();
-            biases = biases.Zip(nabla_b, (b, nb) => b - ((eta / batch.Count) * nb)).ToList();
+            weights = weights.Zip(del_w, (w, nw) => w - ((eta / batchSize) * nw)).ToList();
+            weightsT = weights.Select(a => a.Transpose()).ToList();
+            biases = biases.Zip(del_b, (b, nb) => b - ((eta / batchSize) * nb)).ToList();
         }
 
-        private Tuple<List<Vector<double>>, List<Matrix<double>>> backprop(DataSet dataSet)
+        private void backprop(DataSet dataSet, ref List<Vector<double>> del_b, ref List<Matrix<double>> del_w)
         {
-            var nabla_b = biases.Select(b => CreateVector.Dense<double>(b.Count)).ToList();
-            var nabla_w = weights.Select(w => CreateMatrix.Dense<double>(w.RowCount, w.ColumnCount)).ToList();
-
             // feed forward
             var activation = dataSet.Data;
-            var activations = new List<Vector<double>>();
-            activations.Add(activation);
-            var zs = new List<Vector<double>>();
+            var aStack = new Stack<Vector<double>>(); 
+            aStack.Push(activation);
+            var spStack = new Stack<Vector<double>>();
             foreach (var x in biases.Zip(weights, (b, w) => new { b = b, w = w }))
             {
-                var z = x.w * activation + x.b;
-                zs.Add(z);
+                var z = x.w * activation + x.b;  
                 activation = Sigmoid(z);
-                activations.Add(activation);
+                spStack.Push(activation.PointwiseMultiply(1 - activation));
+                aStack.Push(activation); 
             }
 
             // backward pass
-            var delta = CostDerivative(activations[activations.Count - 1], dataSet.Label).PointwiseMultiply(SigmoidPrime(zs[zs.Count - 1]));
-            nabla_b[nabla_b.Count - 1] = delta;
+            var delta = CostDerivative(aStack.Pop(), dataSet.Label).PointwiseMultiply(spStack.Pop());
+            del_b[del_b.Count - 1] = delta;
 
             var deltaMatrix = CreateMatrix.Dense<double>(1, delta.Count);
             deltaMatrix.SetRow(0, delta);
-            var activationMatrix = CreateMatrix.Dense<double>(1, activations[activations.Count - 2].Count);
-            activationMatrix.SetRow(0, activations[activations.Count - 2]);
-            nabla_w[nabla_w.Count - 1] = deltaMatrix.Transpose() * activationMatrix;
+            del_w[del_w.Count - 1] = deltaMatrix.Transpose() * aStack.Pop().ToRowMatrix();
 
             // additional backward passes
             foreach (var L in xrange(2, sizes.Count))
-            {
-                var z = zs[zs.Count - L];
-                var sp = SigmoidPrime(z);
-                delta = (weights[weights.Count - L + 1].Transpose() * delta).PointwiseMultiply(sp);
-                nabla_b[nabla_b.Count - L] = delta;
+            { 
+                var sp = spStack.Pop();
+                delta = (weightsT[weights.Count - L + 1] * delta).PointwiseMultiply(sp);
+                del_b[del_b.Count - L] = delta;
 
                 deltaMatrix = CreateMatrix.Dense<double>(1, delta.Count);
                 deltaMatrix.SetRow(0, delta);
-                activationMatrix = CreateMatrix.Dense<double>(1, activations[activations.Count - L - 1].Count);
-                activationMatrix.SetRow(0, activations[activations.Count - L - 1]);
-                nabla_w[nabla_w.Count - L] = deltaMatrix.Transpose() * activationMatrix;
+                del_w[del_w.Count - L] = deltaMatrix.Transpose() * aStack.Pop().ToRowMatrix();
             }
 
-            return new Tuple<List<Vector<double>>, List<Matrix<double>>>(nabla_b, nabla_w);
+            //return new Tuple<List<Vector<double>>, List<Matrix<double>>>(del_b, del_w);
         }
 
         private Vector<double> SigmoidPrime(Vector<double> z)
