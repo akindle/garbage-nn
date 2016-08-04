@@ -59,11 +59,37 @@ namespace garbage
             return z.Map(SpecialFunctions.Logistic);
         }
 
-        public async Task StochasticGradientDescent(List<DataSet> trainingData, int miniBatchSize,
-            double eta,
-            List<DataSet> testData = null)
+        public static int SGD(List<DataSet> trainingData, int miniBatchSize, List<DataSet> testData, Layer input)
         {
-            await Task.Run(() =>
+            var rand = new Random();
+            var shuffled = trainingData.OrderBy(a => rand.Next());
+            var miniBatches =
+                Generate.LinearRange(0, trainingData.Count, miniBatchSize)
+                    .Select(k => shuffled.Skip((int) k).Take(miniBatchSize).ToList())
+                    .Select(a => new Minibatch(a));
+            
+            foreach (var batch in miniBatches)
+            {
+                input.Feedforward(batch.inputMatrix);
+                input.Backpropagate(batch.labelMatrix);
+            }
+
+            var testMatrix = CreateMatrix.DenseOfColumnVectors(testData.Select(a => a.Data));
+            var outputs = input.Feedforward(testMatrix);
+            foreach (var x in testData.Zip(outputs.EnumerateColumns(), (d, v) => new { d, v }))
+            {
+                x.d.PredictedLabel = x.v;
+            }
+            var matrixResults = outputs.EnumerateColumns().Select(a => a.MaximumIndex());
+            var pass = matrixResults.Zip(testData.Select(a => a.Label.MaximumIndex()), (a, b) => a == b).Count(a => a);
+            return pass;
+        }
+
+        public async Task<Tuple<int, int>> StochasticGradientDescent(List<DataSet> trainingData, int miniBatchSize,
+            double eta,
+            List<DataSet> testData)
+        {
+            return await Task.Run(() =>
             {
                 var shuffled = trainingData.OrderBy(a => rand.Next());
                 var miniBatches =
@@ -133,12 +159,12 @@ namespace garbage
                     //  updateMiniBatch(batch, eta);
                 }
                 Console.WriteLine($"Minibatch set done in {stopwatch.Elapsed}");
-                if (testData != null)
-                {
-                    stopwatch = Stopwatch.StartNew();
-                    Console.WriteLine($"Epoch: {evaluate(testData)} / {testData.Count}");
-                    Console.WriteLine($"evaluate done in {stopwatch.Elapsed}");
-                }
+                stopwatch = Stopwatch.StartNew();
+                var i = evaluate(testData);
+                var j = testData.Count;
+                Console.WriteLine($"Epoch: {i} / {j}");
+                Console.WriteLine($"evaluate done in {stopwatch.Elapsed}");
+                return new Tuple<int, int>(i, j);
             });
         }
 
@@ -155,11 +181,14 @@ namespace garbage
                         Generate.LinearRange(1, activation.ColumnCount).Select(_ => bias));
                 biasMatrices.Add(biasMatrix);
             }
-            foreach (var x in biasMatrices.Zip(weights, (b, w) => new { b, w }))
+            foreach (var x in biasMatrices.Zip(weights, (b, w) => new {b, w}))
             {
-                activation = Sigmoid(x.w * activation + x.b);
+                activation = Sigmoid(x.w*activation + x.b);
             }
-
+            foreach (var x in testData.Zip(activation.EnumerateColumns(), (d, v) => new {d, v}))
+            {
+                x.d.PredictedLabel = x.v;
+            }
             var matrixResults = activation.EnumerateColumns().Select(a => a.MaximumIndex());
             var k = matrixResults.Zip(testData.Select(a => a.Label.MaximumIndex()), (a, b) => a == b).Count(a => a);
             return k;
@@ -176,6 +205,91 @@ namespace garbage
                 Data = data;
                 Label = CreateVector.Dense<double>(labelDimensionality);
                 Label[label] = 1;
+            }
+        }
+
+        public class Layer
+        {
+            private readonly double _eta;
+
+            private Matrix<double> __sp;
+            private Vector<double> _biases;
+            private Matrix<double> _biasesMatrix;
+            private Matrix<double> _inputs;
+            private Matrix<double> _weights;
+            public Matrix<double> Weights { get { return _weights; } }
+            private Layer _nextLayer;
+
+            public Layer(int inputSize, int outputSize, double eta, Layer nextLayer = null)
+            {
+                _biases = CreateVector.Random<double>(outputSize);
+                _weights = CreateMatrix.Random<double>(outputSize, inputSize);
+                _eta = eta;
+                _nextLayer = nextLayer;
+            }
+
+            public Matrix<double> Outputs { get; set; }
+
+            public Matrix<double> Inputs
+            {
+                get { return _inputs; }
+                set
+                {
+                    _inputs = value;
+                    Outputs = ActivationFunction();
+                }
+            }
+
+            public Matrix<double> Feedforward(Matrix<double> input)
+            {
+                Inputs = input;
+                return _nextLayer != null ? _nextLayer.Feedforward(Outputs) : Outputs;
+            }
+
+            private Matrix<double> _sigmoidPrime => __sp ?? (__sp = Outputs.PointwiseMultiply(1 - Outputs));
+
+            public Matrix<double> Cost(Matrix<double> labels)
+            {
+                return (Outputs - labels).PointwiseMultiply(_sigmoidPrime);
+            }
+
+            public Matrix<double> ActivationFunction()
+            {
+                _biasesMatrix = CreateMatrix.DenseOfColumnVectors(
+                    Generate.LinearRange(1, Inputs.ColumnCount).Select(_ => _biases));
+                return Sigmoid(_weights*Inputs + _biasesMatrix);
+            }
+
+            public Matrix<double> Backpropagate(Matrix<double> labels)
+            {
+                Matrix<double> delta;
+                if (_nextLayer != null)
+                {
+                    delta = _nextLayer.Weights.TransposeThisAndMultiply(_nextLayer.Backpropagate(labels)).PointwiseMultiply(_sigmoidPrime);
+                }
+                else
+                {
+                    delta = (Outputs - labels).PointwiseMultiply(_sigmoidPrime);
+                }
+                _biasesMatrix = CreateMatrix.DenseOfColumnVectors(
+                    Generate.LinearRange(1, Inputs.ColumnCount).Select(_ => _biases)); 
+                var del_w = delta*Inputs.Transpose();
+                var nb = delta.ReduceColumns((vector, doubles) => vector + doubles)
+                    .Divide(delta.ColumnCount);
+                _biases = _biases - _eta/Inputs.ColumnCount*nb;
+                _weights = _weights - _eta/Inputs.ColumnCount*del_w;
+                return delta;
+            }
+
+
+            public static Vector<double> Sigmoid(Vector<double> z)
+            {
+                return z.Map(SpecialFunctions.Logistic);
+            }
+
+            public static Matrix<double> Sigmoid(Matrix<double> z)
+            {
+                return z.Map(SpecialFunctions.Logistic);
             }
         }
 

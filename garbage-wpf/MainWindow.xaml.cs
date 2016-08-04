@@ -22,7 +22,7 @@ namespace garbage_wpf
             InitializeComponent();
 
             _data = new MnistDataLoader();
-            network = new Network(new List<int> {784, 300, 10});
+            network = new Network(new List<int> {784, 300, 30, 10});
         }
 
         private BitmapSource ImageFromData(Network.DataSet data)
@@ -57,14 +57,14 @@ namespace garbage_wpf
                 return;
             }
             Iterate.Content = "Iterating...";
-       //     for (var i = 0; i < 10; i++)
+            for (var i = 0; i < 10; i++)
             {
-                await network.StochasticGradientDescent(_data.TrainingData, 300, 3, _data.TestingData);
-                DrawTestData(_data.TestingData[7]);
-                //Iterate.Content = $"{i} iterations...";
-                var results = _data.TestingData.Select(a => a.Label)
-                    .Zip(_data.TestingData.Select(a => a.PredictedLabel), (b, a) => b.MaximumIndex() == a.MaximumIndex()).ToList();
-                PerformanceLabel.Content = $"{results.Count(a => a)} / {results.Count}";
+                var res = await network.StochasticGradientDescent(_data.TrainingData, 300, 3, _data.TestingData);
+                Iterate.Content = $"{i} iterations...";
+            //    var results = _data.TestingData.Select(a => a.Label)
+            //        .Zip(_data.TestingData.Select(a => a.PredictedLabel), (b, a) => b.MaximumIndex() == a.MaximumIndex()).ToList();
+                PerformanceLabel.Content = $"{res.Item1} / {res.Item2}";
+                ResultSelector_OnValueChanged(null, null);
             }
             Iterate.Content = "Iterate";
         }
