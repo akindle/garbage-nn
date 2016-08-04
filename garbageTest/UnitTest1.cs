@@ -9,9 +9,7 @@ namespace garbageTest
     {
         [TestMethod]
         public void TestMethod1()
-        {
-            var n = new Network(new List<int> {10, 20, 10});
-            var d = new MnistDataLoader();
+        { 
         }
     }
 }

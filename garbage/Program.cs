@@ -28,15 +28,25 @@ namespace garbage
             {
                 Console.WriteLine("No native provider :(");
             }
-            var inputLayer = new Network.Layer(784, 100, 3, 
-                new Network.Layer(100, 10, 3));
+            var inputLayer = new Layer(784, 100, 0.5, 
+                new SoftmaxLayer(100, 10, 0.5));
             
             var x = new MnistDataLoader();
             x.Load().Wait();
             //var network = new Network(new List<int> {784, 300, 30, 10});
+            var i = 0;
             while (true)
             {
-                Console.WriteLine(Network.SGD(x.TrainingData, 3000, x.TestingData, inputLayer));
+                Network.SGD(x.TrainingData, 1000, x.TestingData, inputLayer);
+                i++;
+                Console.Write(".");
+                if (i%80 == 0)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine($"{Network.Evaluate(x.TestingData, inputLayer)} / {x.TestingData.Count}");
+                    Console.WriteLine($"{Network.Evaluate(x.TrainingData, inputLayer)} / {x.TrainingData.Count}");
+                    Console.WriteLine();
+                }
                 //network.StochasticGradientDescent(x.TrainingData, 300, 3, x.TestingData).Wait();
             }
         }

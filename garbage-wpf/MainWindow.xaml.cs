@@ -15,14 +15,14 @@ namespace garbage_wpf
     public partial class MainWindow : Window
     {
         private readonly MnistDataLoader _data;
-        private readonly Network.Layer _input;
+        private readonly Layer _input;
 
         public MainWindow()
         {
             InitializeComponent();
 
             _data = new MnistDataLoader();
-            _input = new Network.Layer(784, 100, 3, new Network.Layer(100, 10, 3));
+            _input = new Layer(784, 100, 3, new Layer(100, 10, 3));
         }
 
         private BitmapSource ImageFromData(Network.DataSet data)
@@ -57,7 +57,7 @@ namespace garbage_wpf
                 return;
             }
             Iterate.Content = "Iterating...";
-            for (var i = 0; i < 100; i++)
+            for (var i = 0; i < 10000; i++)
             {
                 var res = await Network.SGDAsync(_data.TrainingData, 300, _data.TestingData, _input);
                 Iterate.Content = $"{i} iterations...";

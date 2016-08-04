@@ -9,21 +9,27 @@ namespace garbage
 {
     public class Network
     {
-        public static int SGD(List<DataSet> trainingData, int miniBatchSize, List<DataSet> testData, Layer input)
+        public static void SGD(List<DataSet> trainingData, int miniBatchSize, List<DataSet> testData, Layer input)
         {
             var rand = new Random();
-            var shuffled = trainingData.OrderBy(a => rand.Next());
-            var miniBatches =
-                Generate.LinearRange(0, trainingData.Count, miniBatchSize)
-                    .Select(k => shuffled.Skip((int) k).Take(miniBatchSize).ToList())
-                    .Select(a => new Minibatch(a));
+            var shuffled = trainingData.OrderBy(a => rand.Next()).Take(miniBatchSize).ToList();
+           // var miniBatches =
+           //     Generate.LinearRange(0, trainingData.Count, miniBatchSize)
+           //         .Select(k => shuffled.Skip((int) k).Take(miniBatchSize).ToList())
+           //         .Select(a => new Minibatch(a));
+            var inputMatrix = CreateMatrix.DenseOfColumnVectors(shuffled.Select(a => a.Data));
+            var labelMatrix = CreateMatrix.DenseOfColumnVectors(shuffled.Select(a => a.Label));
+            input.Feedforward(inputMatrix);
+            input.Backpropagate(labelMatrix);
+            //foreach (var batch in miniBatches)
+            //{
+            //    input.Feedforward(batch.inputMatrix);
+            //    input.Backpropagate(batch.labelMatrix);
+            //}
+        }
 
-            foreach (var batch in miniBatches)
-            {
-                input.Feedforward(batch.inputMatrix);
-                input.Backpropagate(batch.labelMatrix);
-            }
-
+        public static int Evaluate(List<DataSet> testData, Layer input)
+        {
             var testMatrix = CreateMatrix.DenseOfColumnVectors(testData.Select(a => a.Data));
             var outputs = input.Feedforward(testMatrix);
             foreach (var x in testData.Zip(outputs.EnumerateColumns(), (d, v) => new {d, v}))
@@ -49,93 +55,6 @@ namespace garbage
             }
         }
 
-        public class Layer
-        {
-            private readonly double _eta;
-
-            private Matrix<double> __sp;
-            private Vector<double> _biases;
-            private Matrix<double> _biasesMatrix;
-            private Matrix<double> _inputs;
-            private readonly Layer _nextLayer;
-
-            public Layer(int inputSize, int outputSize, double eta, Layer nextLayer = null)
-            {
-                _biases = CreateVector.Random<double>(outputSize);
-                Weights = CreateMatrix.Random<double>(outputSize, inputSize);
-                _eta = eta;
-                _nextLayer = nextLayer;
-            }
-
-            public Matrix<double> Weights { get; private set; }
-
-            public Matrix<double> Outputs { get; set; }
-
-            public Matrix<double> Inputs
-            {
-                get { return _inputs; }
-                set
-                {
-                    _inputs = value;
-                    Outputs = ActivationFunction();
-                }
-            }
-
-            private Matrix<double> _sigmoidPrime => __sp ?? (__sp = Outputs.PointwiseMultiply(1 - Outputs));
-
-            public Matrix<double> Feedforward(Matrix<double> input)
-            {
-                Inputs = input;
-                return _nextLayer != null ? _nextLayer.Feedforward(Outputs) : Outputs;
-            }
-
-            public Matrix<double> Cost(Matrix<double> labels)
-            {
-                return (Outputs - labels).PointwiseMultiply(_sigmoidPrime);
-            }
-
-            public Matrix<double> ActivationFunction()
-            {
-                _biasesMatrix = CreateMatrix.DenseOfColumnVectors(
-                    Generate.LinearRange(1, Inputs.ColumnCount).Select(_ => _biases));
-                return Sigmoid(Weights*Inputs + _biasesMatrix);
-            }
-
-            public Matrix<double> Backpropagate(Matrix<double> labels)
-            {
-                Matrix<double> delta;
-                if (_nextLayer != null)
-                {
-                    delta =
-                        _nextLayer.Weights.TransposeThisAndMultiply(_nextLayer.Backpropagate(labels))
-                            .PointwiseMultiply(_sigmoidPrime);
-                }
-                else
-                {
-                    delta = (Outputs - labels).PointwiseMultiply(_sigmoidPrime);
-                }
-                _biasesMatrix = CreateMatrix.DenseOfColumnVectors(
-                    Generate.LinearRange(1, Inputs.ColumnCount).Select(_ => _biases));
-                var del_w = delta*Inputs.Transpose();
-                var nb = delta.ReduceColumns((vector, doubles) => vector + doubles)
-                    .Divide(delta.ColumnCount);
-                _biases = _biases - _eta/Inputs.ColumnCount*nb;
-                Weights = Weights - _eta/Inputs.ColumnCount*del_w;
-                return delta;
-            }
-
-
-            public static Vector<double> Sigmoid(Vector<double> z)
-            {
-                return z.Map(SpecialFunctions.Logistic);
-            }
-
-            public static Matrix<double> Sigmoid(Matrix<double> z)
-            {
-                return z.Map(SpecialFunctions.Logistic);
-            }
-        }
-
         public class Minibatch
         {
             public readonly Matrix<double> inputMatrix;
@@ -150,9 +69,9 @@ namespace garbage
             }
         }
 
-        public static async Task<int> SGDAsync(List<DataSet> trainingData, int i, List<DataSet> testingData, Layer input)
+        public static async Task SGDAsync(List<DataSet> trainingData, int i, List<DataSet> testingData, Layer input)
         {
-            return await Task.Run(() => SGD(trainingData, i, testingData, input));
+            await Task.Run(() => SGD(trainingData, i, testingData, input));
         }
     }
 }
