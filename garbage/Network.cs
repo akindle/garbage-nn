@@ -135,7 +135,9 @@ namespace garbage
                 Console.WriteLine($"Minibatch set done in {stopwatch.Elapsed}");
                 if (testData != null)
                 {
+                    stopwatch = Stopwatch.StartNew();
                     Console.WriteLine($"Epoch: {evaluate(testData)} / {testData.Count}");
+                    Console.WriteLine($"evaluate done in {stopwatch.Elapsed}");
                 }
             });
         }
@@ -143,16 +145,24 @@ namespace garbage
         private int evaluate(List<DataSet> testData)
         {
             var i = 0;
-            foreach (var x in testData)
+            var testMatrix = CreateMatrix.DenseOfColumnVectors(testData.Select(a => a.Data));
+            var activation = testMatrix;
+            var biasMatrices = new List<Matrix<double>>();
+            foreach (var bias in biases)
             {
-                var a = x.Data;
-                foreach (var x1 in biases.Zip(weights, (bias, weight) => new {b = bias, w = weight}))
-                    a = Sigmoid(x1.w*a + x1.b);
-                x.PredictedLabel = a;
-                i += x.PredictedLabel.MaximumIndex() == x.Label.MaximumIndex() ? 1 : 0;
+                var biasMatrix =
+                    CreateMatrix.DenseOfColumnVectors(
+                        Generate.LinearRange(1, activation.ColumnCount).Select(_ => bias));
+                biasMatrices.Add(biasMatrix);
             }
-            var j = testData.Count(a => a.PredictedLabel.MaximumIndex() == a.Label.MaximumIndex());
-            return i;
+            foreach (var x in biasMatrices.Zip(weights, (b, w) => new { b, w }))
+            {
+                activation = Sigmoid(x.w * activation + x.b);
+            }
+
+            var matrixResults = activation.EnumerateColumns().Select(a => a.MaximumIndex());
+            var k = matrixResults.Zip(testData.Select(a => a.Label.MaximumIndex()), (a, b) => a == b).Count(a => a);
+            return k;
         }
 
         public class DataSet
