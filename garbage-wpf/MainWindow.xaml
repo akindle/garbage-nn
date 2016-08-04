@@ -1,0 +1,14 @@
+﻿<Window x:Class="garbage_wpf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:garbage_wpf"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="350" Width="525">
+    <StackPanel>
+        <Image Width="96" Height="96" Name="Display" />
+        <Label Name="DisplayLabel" Content="Hello"/>
+        <Button Width="100" Height="28" Content="Iterate" Name="Iterate" Click="Iterate_OnClick" />
+    </StackPanel>
+</Window>

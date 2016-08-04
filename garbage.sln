@@ -7,6 +7,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "garbage", "garbage\garbage.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "garbageTest", "garbageTest\garbageTest.csproj", "{5ADEBC61-DCDF-44DF-B1C0-4087F75B8DF8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "garbage-wpf", "garbage-wpf\garbage-wpf.csproj", "{6C74A693-9B4D-4039-8C76-514F26B2AB2A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{874BE871-E06E-43FA-8BB6-EAC559BA25B8} = {874BE871-E06E-43FA-8BB6-EAC559BA25B8}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +26,10 @@ Global
 		{5ADEBC61-DCDF-44DF-B1C0-4087F75B8DF8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5ADEBC61-DCDF-44DF-B1C0-4087F75B8DF8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5ADEBC61-DCDF-44DF-B1C0-4087F75B8DF8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6C74A693-9B4D-4039-8C76-514F26B2AB2A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6C74A693-9B4D-4039-8C76-514F26B2AB2A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6C74A693-9B4D-4039-8C76-514F26B2AB2A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6C74A693-9B4D-4039-8C76-514F26B2AB2A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
