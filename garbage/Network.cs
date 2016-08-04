@@ -59,58 +59,85 @@ namespace garbage
             return z.Map(SpecialFunctions.Logistic);
         }
 
-        public Vector<double> Feedforward(Vector<double> a)
-        {
-            foreach (var x in biases.Zip(weights, (bias, weight) => new {b = bias, w = weight}))
-                a = Sigmoid(x.w*a + x.b);
-            return a;
-        }
-
-        public async Task StochasticGradientDescent(List<DataSet> trainingData, int epochs, int miniBatchSize,
+        public async Task StochasticGradientDescent(List<DataSet> trainingData, int miniBatchSize,
             double eta,
             List<DataSet> testData = null)
         {
             await Task.Run(() =>
             {
-                var nTest = testData?.Count ?? 0;
-                var n = trainingData.Count;
-                for(var i = 0; i < epochs; i++)
+                var shuffled = trainingData.OrderBy(a => rand.Next());
+                var miniBatches =
+                    Generate.LinearRange(0, trainingData.Count, miniBatchSize)
+                        .Select(k => shuffled.Skip((int) k).Take(miniBatchSize).ToList())
+                        .Select(a => new Minibatch(a));
+
+                var stopwatch = Stopwatch.StartNew();
+                foreach (var batch in miniBatches)
                 {
-                    var shuffled = trainingData.OrderBy(a => rand.Next());
-                    var miniBatches =
-                        Generate.LinearRange(0, n, miniBatchSize).Select(k => shuffled.Skip((int)k).Take(miniBatchSize).ToList());
-                    // updateMiniBatch(shuffled.Take(miniBatchSize), eta);
-                    var stopwatch = Stopwatch.StartNew();
-                    foreach (var batch in miniBatches)
+                    if (del_b == null)
+                        del_b = biases.Select(b => CreateMatrix.Dense<double>(b.Count, batch.inputs.Count)).ToList();
+                    if (del_w == null)
+                        del_w = weights.Select(w => CreateMatrix.Dense<double>(w.RowCount, w.ColumnCount)).ToList();
+
+                    // setup 
+                    // first activation set is also the input
+                    var activation = batch.inputMatrix;
+                    // we want a matrix of biases for matrix mathing things quickly
+                    var biasMatrices = new List<Matrix<double>>();
+                    foreach (var bias in biases)
                     {
-                        updateMiniBatch(new Minibatch(batch), eta);
-                        //  updateMiniBatch(batch, eta);
+                        var biasMatrix =
+                            CreateMatrix.DenseOfColumnVectors(
+                                Generate.LinearRange(1, activation.ColumnCount).Select(_ => bias));
+                        biasMatrices.Add(biasMatrix);
                     }
-                    Console.WriteLine($"Minibatch set done in {stopwatch.Elapsed}");
-                    if (testData != null)
+
+                    // feed forward
+                    // we need intermediate values for backpropagating and we need them in reverse order, so cache them on stacks
+                    var activationMatrices = new Stack<Matrix<double>>();
+                    var sigmoidPrimeMatrices = new Stack<Matrix<double>>();
+                    activationMatrices.Push(batch.inputMatrix);
+                    foreach (var x in biasMatrices.Zip(weights, (b, w) => new {b, w}))
                     {
-                        Console.WriteLine($"Epoch {i}: {evaluate(testData)} / {nTest}");
+                        activation = Sigmoid(x.w*activation + x.b);
+                        activationMatrices.Push(activation);
+                        sigmoidPrimeMatrices.Push(activation.PointwiseMultiply(1 - activation));
                     }
-                    else
+
+                    // backward passes 
+                    Matrix<double> delta = null;
+                    for (var L = 1; L < sizes.Count; L++)
                     {
-                        Console.WriteLine($"Epoch {i} complete");
+                        var sp = sigmoidPrimeMatrices.Pop();
+                        var a1 = activationMatrices.Pop();
+                        if (L > 1)
+                        {
+                            delta = weights[weights.Count - L + 1].TransposeThisAndMultiply(delta).PointwiseMultiply(sp);
+                        }
+                        else
+                        {
+                            // initialize delta with the hadamard product of the cost function and the sigmoid prime
+                            delta = (a1 - batch.labelMatrix).PointwiseMultiply(sp);
+                            a1 = activationMatrices.Pop();
+                        }
+                        del_b[del_b.Count - L] = delta;
+                        del_w[del_w.Count - L] = delta*a1.Transpose();
                     }
+
+                    weights = weights.Zip(del_w, (w, nw) => w - eta/batch.inputs.Count*nw).ToList();
+                    biases =
+                        biases.Zip(
+                            del_b.Select(
+                                a => a.ReduceColumns((vector, doubles) => vector + doubles).Divide(a.ColumnCount)),
+                            (b, nb) => b - eta/batch.inputs.Count*nb).ToList();
+                    //  updateMiniBatch(batch, eta);
+                }
+                Console.WriteLine($"Minibatch set done in {stopwatch.Elapsed}");
+                if (testData != null)
+                {
+                    Console.WriteLine($"Epoch: {evaluate(testData)} / {testData.Count}");
                 }
             });
-        }
-
-        private void updateMiniBatch(Minibatch batch, double eta)
-        {
-            if (del_b == null)
-                del_b = biases.Select(b => CreateMatrix.Dense<double>(b.Count, batch.inputs.Count)).ToList();
-            if (del_w == null)
-                del_w = weights.Select(w => CreateMatrix.Dense<double>(w.RowCount, w.ColumnCount)).ToList();
-            backprop(batch, ref del_b, ref del_w);
-            weights = weights.Zip(del_w, (w, nw) => w - eta/batch.inputs.Count*nw).ToList();
-            biases =
-                biases.Zip(
-                    del_b.Select(a => a.ReduceColumns((vector, doubles) => vector + doubles).Divide(a.ColumnCount)),
-                    (b, nb) => b - eta/batch.inputs.Count*nb).ToList();
         }
 
         private int evaluate(List<DataSet> testData)
@@ -118,54 +145,15 @@ namespace garbage
             var i = 0;
             foreach (var x in testData)
             {
-                x.PredictedLabel = Feedforward(x.Data);
+                var a = x.Data;
+                foreach (var x1 in biases.Zip(weights, (bias, weight) => new {b = bias, w = weight}))
+                    a = Sigmoid(x1.w*a + x1.b);
+                x.PredictedLabel = a;
                 i += x.PredictedLabel.MaximumIndex() == x.Label.MaximumIndex() ? 1 : 0;
             }
             var j = testData.Count(a => a.PredictedLabel.MaximumIndex() == a.Label.MaximumIndex());
             return i;
         }
-
-        private void backprop(Minibatch batch, ref List<Matrix<double>> del_b, ref List<Matrix<double>> del_w)
-        {
-            // feed forward
-            var activation = batch.inputMatrix;
-            var biasMatrices = new List<Matrix<double>>();
-            foreach (var b in biases)
-            {
-                var bm = CreateMatrix.Dense<double>(b.Count, activation.ColumnCount);
-                for (var i = 0; i < bm.ColumnCount; i++) bm.SetColumn(i, b);
-                biasMatrices.Add(bm);
-            }
-            var aStack = new Stack<Matrix<double>>();
-            aStack.Push(activation);
-            var spStack = new Stack<Matrix<double>>();
-            foreach (var x in biasMatrices.Zip(weights, (b, w) => new {b, w}))
-            {
-                var z = x.w*activation + x.b;
-                activation = Sigmoid(z);
-                spStack.Push(activation.PointwiseMultiply(1 - activation));
-                aStack.Push(activation);
-            }
-
-            // backward pass
-            // hadamard product of cost derivative and sp
-            var delta = (aStack.Pop() - batch.labelMatrix).PointwiseMultiply(spStack.Pop());
-            del_b[del_b.Count - 1] = delta;
-            del_w[del_w.Count - 1] = delta*aStack.Pop().Transpose();
-
-            // additional backward passes 
-            for(var L = 2; L < sizes.Count; L++)
-            {
-                var sp = spStack.Pop();
-                var a = aStack.Pop();
-
-                delta = weights[weights.Count - L + 1].TransposeThisAndMultiply(delta).PointwiseMultiply(sp);
-                del_b[del_b.Count - L] = delta;
-                del_w[del_w.Count - L] = delta*a.Transpose();
-            }
-
-            //return new Tuple<List<Vector<double>>, List<Matrix<double>>>(del_b, del_w);
-        } 
 
         public class DataSet
         {

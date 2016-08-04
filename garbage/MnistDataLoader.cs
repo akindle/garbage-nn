@@ -50,9 +50,10 @@ namespace garbage
             Columns = await datastream.ReadInt32Async();
             for (var i = 0; i < size; i++)
             {
-                var label = await labelstream.ReadByteAsync();
-                var buffer = new byte[Rows*Columns];
-                await datastream.ReadBytesAsync(buffer, 0, Rows*Columns);
+                var label = labelstream.ReadByte();
+                // var buffer = new byte[Rows*Columns];
+                // await datastream.ReadBytesAsync(buffer, 0, Rows*Columns);
+                var buffer = datastream.ReadBytes(Rows*Columns);
                 var data = CreateVector.Dense(buffer.Select(a => (double) a).ToArray());
                 results.Add(new Network.DataSet(data, label, 10));
             }

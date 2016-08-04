@@ -10,8 +10,8 @@ namespace garbage
         {
             var x = new MnistDataLoader();
             x.Load().Wait();
-            var network = new Network(new List<int> {784, 300, 10});
-            network.StochasticGradientDescent(x.TrainingData, 30000, 300, 3, x.TestingData).Wait();
+            var network = new Network(new List<int> {784, 100, 30, 10});
+            while(true) network.StochasticGradientDescent(x.TrainingData, 300, 3, x.TestingData).Wait();
         }
     }
 }

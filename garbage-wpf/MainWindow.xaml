@@ -9,6 +9,8 @@
     <StackPanel>
         <Image Width="96" Height="96" Name="Display" />
         <Label Name="DisplayLabel" Content="Hello"/>
+        <Slider Name="ResultSelector" ValueChanged="ResultSelector_OnValueChanged"/>
         <Button Width="100" Height="28" Content="Iterate" Name="Iterate" Click="Iterate_OnClick" />
+        <Label Name="PerformanceLabel" Content="How are you"/>
     </StackPanel>
 </Window>

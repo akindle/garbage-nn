@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -49,16 +50,31 @@ namespace garbage_wpf
             {
                 Iterate.Content = "Loading...";
                 await _data.Load();
+                ResultSelector.Minimum = 0;
+                ResultSelector.Maximum = _data.TestingData.Count;
                 DrawTestData(_data.TestingData[10]);
+                Iterate.Content = "Iterate";
+                return;
             }
             Iterate.Content = "Iterating...";
-            for (var i = 0; i < 10; i++)
+       //     for (var i = 0; i < 10; i++)
             {
-                await network.StochasticGradientDescent(_data.TrainingData, 1, 300, 3, _data.TestingData);
-                DrawTestData(_data.TestingData[10]);
-                Iterate.Content = $"{i} iterations...";
+                await network.StochasticGradientDescent(_data.TrainingData, 300, 3, _data.TestingData);
+                DrawTestData(_data.TestingData[7]);
+                //Iterate.Content = $"{i} iterations...";
+                var results = _data.TestingData.Select(a => a.Label)
+                    .Zip(_data.TestingData.Select(a => a.PredictedLabel), (b, a) => b.MaximumIndex() == a.MaximumIndex()).ToList();
+                PerformanceLabel.Content = $"{results.Count(a => a)} / {results.Count}";
             }
             Iterate.Content = "Iterate";
+        }
+
+        private void ResultSelector_OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_data.Loaded)
+            {
+                DrawTestData(_data.TestingData[(int)Math.Min(ResultSelector.Value, _data.TestingData.Count - 1)]);
+            }
         }
     }
 }

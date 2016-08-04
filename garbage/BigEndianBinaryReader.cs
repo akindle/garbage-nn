@@ -19,13 +19,6 @@ namespace garbage
             return BitConverter.ToInt32(a32, 0);
         }
 
-        public async Task<byte> ReadByteAsync()
-        {
-            var buf = new byte[1];
-            await BaseStream.ReadAsync(buf, 0, 1);
-            return buf[0];
-        }
-
         public async Task ReadBytesAsync(byte[] buffer, int offset, int count)
         {
             await BaseStream.ReadAsync(buffer, offset, count);
