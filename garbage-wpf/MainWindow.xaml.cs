@@ -15,14 +15,14 @@ namespace garbage_wpf
     public partial class MainWindow : Window
     {
         private readonly MnistDataLoader _data;
-        private readonly Network network;
+        private readonly Network.Layer _input;
 
         public MainWindow()
         {
             InitializeComponent();
 
             _data = new MnistDataLoader();
-            network = new Network(new List<int> {784, 300, 30, 10});
+            _input = new Network.Layer(784, 100, 3, new Network.Layer(100, 10, 3));
         }
 
         private BitmapSource ImageFromData(Network.DataSet data)
@@ -57,13 +57,13 @@ namespace garbage_wpf
                 return;
             }
             Iterate.Content = "Iterating...";
-            for (var i = 0; i < 10; i++)
+            for (var i = 0; i < 100; i++)
             {
-                var res = await network.StochasticGradientDescent(_data.TrainingData, 300, 3, _data.TestingData);
+                var res = await Network.SGDAsync(_data.TrainingData, 300, _data.TestingData, _input);
                 Iterate.Content = $"{i} iterations...";
             //    var results = _data.TestingData.Select(a => a.Label)
             //        .Zip(_data.TestingData.Select(a => a.PredictedLabel), (b, a) => b.MaximumIndex() == a.MaximumIndex()).ToList();
-                PerformanceLabel.Content = $"{res.Item1} / {res.Item2}";
+                PerformanceLabel.Content = $"{res} / {10000}";
                 ResultSelector_OnValueChanged(null, null);
             }
             Iterate.Content = "Iterate";
