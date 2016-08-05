@@ -8,7 +8,7 @@ using MathNet.Numerics.LinearAlgebra;
 
 namespace garbage
 {
-    class SoftmaxLayer : Layer
+    public class SoftmaxLayer : Layer
     {
         public SoftmaxLayer(int inputSize, int outputSize, double eta, Layer nextLayer = null) : base(inputSize, outputSize, eta, nextLayer)
         {

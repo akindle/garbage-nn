@@ -22,7 +22,8 @@ namespace garbage_wpf
             InitializeComponent();
 
             _data = new MnistDataLoader();
-            _input = new Layer(784, 100, 3, new Layer(100, 10, 3));
+            //_input = new Layer(784, 100, 1, new SoftmaxLayer(100, 10, 1));
+            _input = new Layer(784, 10, 1);
         }
 
         private BitmapSource ImageFromData(Network.DataSet data)
@@ -59,12 +60,16 @@ namespace garbage_wpf
             Iterate.Content = "Iterating...";
             for (var i = 0; i < 10000; i++)
             {
-                var res = await Network.SGDAsync(_data.TrainingData, 300, _data.TestingData, _input);
+                await Network.SGDAsync(_data.TrainingData, 3000, _data.TestingData, _input);
                 Iterate.Content = $"{i} iterations...";
             //    var results = _data.TestingData.Select(a => a.Label)
             //        .Zip(_data.TestingData.Select(a => a.PredictedLabel), (b, a) => b.MaximumIndex() == a.MaximumIndex()).ToList();
-                PerformanceLabel.Content = $"{res} / {10000}";
-                ResultSelector_OnValueChanged(null, null);
+                if (i%10 == 0)
+                {
+                    var res = await Task.Run(() => Network.Evaluate(_data.TestingData, _input));
+                    PerformanceLabel.Content = $"{res} / {10000}";
+                    ResultSelector_OnValueChanged(null, null);
+                }
             }
             Iterate.Content = "Iterate";
         }
