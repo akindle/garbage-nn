@@ -14,7 +14,7 @@
         <StackPanel Orientation="Horizontal">
             <TextBox Name="Iterations" Width="50" Text="1000"/>
             <Button Width="100" Height="28" Content="Iterate" Name="Iterate" Click="Iterate_OnClick" />
-            
+            <Label Name="IterationStatus" Content="Not Loaded"/>
         </StackPanel>
         <Label Name="PerformanceLabel" Content="How are you"/>
     </StackPanel>

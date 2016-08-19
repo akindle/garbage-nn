@@ -22,7 +22,7 @@ namespace garbage_wpf
             InitializeComponent();
 
             _data = new MnistDataLoader();
-            _input = new Layer(784, 100, 1, new SoftmaxLayer(100, 10, 1));
+            _input = new Layer(784, 300, 1, new Layer(300, 100, 1, new SoftmaxLayer(100, 10, 1)));
             //_input = new Layer(784, 10, 1);
         }
 
@@ -44,6 +44,7 @@ namespace garbage_wpf
             }
         }
 
+        private int iterationCount = 0;
         private async void Iterate_OnClick(object sender, RoutedEventArgs e)
         {
             if (!Iterate.Content.Equals("Iterate")) return;
@@ -55,11 +56,14 @@ namespace garbage_wpf
                 ResultSelector.Maximum = _data.TestingData.Count;
                 DrawTestData(_data.TestingData[10]);
                 Iterate.Content = "Iterate";
+                IterationStatus.Content = "0 iterations";
                 return;
             }
             Iterate.Content = "Iterating...";
             for (var i = 0; i < Int32.Parse(Iterations.Text); i++)
             {
+                iterationCount++;
+                IterationStatus.Content = $"{iterationCount} iterations";
                 await Network.SGDAsync(_data.TrainingData, 3000, _data.TestingData, _input);
                 Iterate.Content = $"{i} iterations...";
             //    var results = _data.TestingData.Select(a => a.Label)
