@@ -7,10 +7,15 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="350" Width="525">
     <StackPanel>
+        <Separator Height="20"/>
         <Image Width="96" Height="96" Name="Display" />
         <Label Name="DisplayLabel" Content="Hello"/>
         <Slider Name="ResultSelector" ValueChanged="ResultSelector_OnValueChanged"/>
-        <Button Width="100" Height="28" Content="Iterate" Name="Iterate" Click="Iterate_OnClick" />
+        <StackPanel Orientation="Horizontal">
+            <TextBox Name="Iterations" Width="50" Text="1000"/>
+            <Button Width="100" Height="28" Content="Iterate" Name="Iterate" Click="Iterate_OnClick" />
+            
+        </StackPanel>
         <Label Name="PerformanceLabel" Content="How are you"/>
     </StackPanel>
 </Window>

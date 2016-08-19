@@ -47,6 +47,8 @@ namespace garbage
             public readonly Vector<double> Label;
             public Vector<double> PredictedLabel;
 
+            public bool Predicted => PredictedLabel.MaximumIndex() == Label.MaximumIndex();
+
             public DataSet(Vector<double> data, int label, int labelDimensionality)
             {
                 Data = data;
